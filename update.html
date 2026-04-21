@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>qTest Bulk Upload</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 550px;
+      margin: 60px auto;
+      padding: 20px;
+      background: #f0f4f8;
+    }
+    .card {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    }
+    h2 {
+      color: #0078d4;
+      margin-top: 0;
+      font-size: 22px;
+    }
+    p { color: #444; font-size: 14px; }
+    .format-box {
+      background: #f0f7ff;
+      border-left: 4px solid #0078d4;
+      padding: 10px 15px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: #333;
+      margin: 15px 0;
+    }
+    .drop-zone {
+      width: 100%;
+      border: 2px dashed #0078d4;
+      border-radius: 6px;
+      padding: 25px;
+      text-align: center;
+      background: #f8fbff;
+      cursor: pointer;
+      margin: 15px 0;
+      box-sizing: border-box;
+    }
+    .drop-zone:hover {
+      background: #e6f2ff;
+    }
+    .drop-zone input {
+      display: none;
+    }
+    .drop-zone-text {
+      color: #0078d4;
+      font-size: 15px;
+    }
+    .file-name {
+      margin-top: 8px;
+      font-size: 13px;
+      color: #666;
+    }
+    button {
+      width: 100%;
+      background: #0078d4;
+      color: white;
+      padding: 13px;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 5px;
+    }
+    button:hover { background: #005a9e; }
+    button:disabled {
+      background: #aaa;
+      cursor: not-allowed;
+    }
+    #status {
+      margin-top: 18px;
+      padding: 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      display: none;
+      line-height: 1.5;
+    }
+    .success {
+      background: #dff6dd;
+      color: #107c10;
+      border: 1px solid #107c10;
+    }
+    .error {
+      background: #fde7e9;
+      color: #d13438;
+      border: 1px solid #d13438;
+    }
+    .loading {
+      background: #fff4ce;
+      color: #797600;
+      border: 1px solid #797600;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+
+  <h2>📋 qTest Bulk Upload</h2>
+  <p>Upload a CSV file to automatically create 
+     test cases in qTest Cloud.</p>
+
+  <div class="format-box">
+    <strong>Required CSV columns (in this order):</strong><br/>
+    name, description, precondition, 
+    test_steps, expected_result
+  </div>
+
+  <div class="drop-zone" onclick="document.getElementById('csvFile').click()">
+    <input type="file" id="csvFile" 
+           accept=".csv" onchange="showFileName()"/>
+    <div class="drop-zone-text">
+      📁 Click here to choose your CSV file
+    </div>
+    <div class="file-name" id="fileName">
+      No file selected
+    </div>
+  </div>
+
+  <button id="uploadBtn" onclick="uploadCSV()">
+    ⬆️ Upload Test Cases to qTest
+  </button>
+
+  <div id="status"></div>
+
+</div>
+
+<script>
+
+  // =============================================
+  // PASTE YOUR POWER AUTOMATE URL BETWEEN 
+  // THE SINGLE QUOTES BELOW
+  // =============================================
+  const FLOW_URL = 'https://afd708b07b0ae581a922e22617cbee.11.environment.api.powerplatform.com:443/powerautomate/automations/direct/workflows/6c1ec634c6304431b72853b3a110953d/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=eSa9OoCQRpACY-mrVDDtxh26MM2FaIFCtzChcUakhO8';
+  // =============================================
+
+  function showFileName() {
+    const file = document.getElementById('csvFile').files[0];
+    if (file) {
+      document.getElementById('fileName').innerText 
+        = '✅ Selected: ' + file.name;
+    }
+  }
+
+  function showStatus(message, type) {
+    const el = document.getElementById('status');
+    el.innerHTML = message;
+    el.className = type;
+    el.style.display = 'block';
+  }
+
+  async function uploadCSV() {
+
+    const file = document.getElementById('csvFile').files[0];
+    const btn  = document.getElementById('uploadBtn');
+
+    // Check file selected
+    if (!file) {
+      showStatus('❌ Please select a CSV file first.', 
+                 'error');
+      return;
+    }
+
+    // Check URL configured
+    if (FLOW_URL === 'PASTE_YOUR_POWER_AUTOMATE_URL_HERE') {
+      showStatus(
+        '❌ Flow URL not configured.<br/>' +
+        'Please open upload.html in Notepad and ' +
+        'replace PASTE_YOUR_POWER_AUTOMATE_URL_HERE ' +
+        'with your Power Automate HTTP URL.',
+        'error'
+      );
+      return;
+    }
+
+    btn.disabled = true;
+    showStatus('⏳ Uploading... please wait. ' +
+               'Do not close this window.', 'loading');
+
+    const reader = new FileReader();
+
+    reader.onload = async function(e) {
+      const csvContent = e.target.result;
+
+      // Count rows for user feedback
+      const rows = csvContent.split('\n')
+                   .filter(r => r.trim().length > 0);
+      const dataRows = rows.length - 1;
+
+      try {
+        const response = await fetch(FLOW_URL, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            csvContent: csvContent 
+          })
+        });
+
+        if (response.ok || response.status === 202) {
+          showStatus(
+            '✅ <strong>Upload Successful!</strong><br/><br/>' +
+            '📊 <strong>' + dataRows + 
+            ' test case(s)</strong> are being created in qTest.<br/><br/>' +
+            '⏱️ Please wait 1-2 minutes then check:<br/>' +
+            'qTest → Test Design → Created via API',
+            'success'
+          );
+        } else {
+          showStatus(
+            '❌ <strong>Upload Failed</strong><br/>' +
+            'Status code: ' + response.status + '<br/><br/>' +
+            'Please check:<br/>' +
+            '• Your CSV format is correct<br/>' +
+            '• Power Automate flow is turned ON<br/>' +
+            '• Flow URL is correct in upload.html',
+            'error'
+          );
+        }
+
+      } catch(err) {
+        showStatus(
+          '❌ <strong>Connection Error</strong><br/>' +
+          err.message + '<br/><br/>' +
+          'Please check:<br/>' +
+          '• You are connected to the internet<br/>' +
+          '• The Flow URL is correct<br/>' +
+          '• Power Automate flow is turned ON',
+          'error'
+        );
+      }
+
+      btn.disabled = false;
+    };
+
+    reader.onerror = function() {
+      showStatus('❌ Could not read the file. ' +
+                 'Please try again.', 'error');
+      btn.disabled = false;
+    };
+
+    reader.readAsText(file);
+  }
+
+</script>
+</body>
+</html>
